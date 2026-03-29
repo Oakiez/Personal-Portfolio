@@ -1,0 +1,41 @@
+! ============================================================
+! LAB 6 — R2 Configuration (LAN B Router)
+! Enterprise Branch Architecture v1
+! ============================================================
+
+hostname R2
+
+! --- Interface: LAN B ---
+interface GigabitEthernet0/1
+ description LAN-B-Internal
+ ip address 192.168.20.1 255.255.255.0
+ no shutdown
+
+! --- Interface: WAN Serial to R1 ---
+interface Serial0/0/0
+ description WAN-Link-to-R1
+ ip address 100.10.10.2 255.255.255.252
+ no shutdown
+
+! ============================================================
+! PHASE 1 — OSPF Dynamic Routing
+! ============================================================
+router ospf 1
+ router-id 2.2.2.2
+ network 100.10.10.0 0.0.0.3 area 0
+ network 192.168.20.0 0.0.0.255 area 0
+ passive-interface GigabitEthernet0/1
+
+! NOTE: Default route learned automatically from R1 via OSPF
+! No static route needed — OSPF handles it
+! When ISP fails, R1's IP SLA removes the default route
+! R2 automatically loses the default cleanly
+
+! ============================================================
+! PHASE 5 — Observability Foundation
+! ============================================================
+service timestamps log datetime msec
+logging buffered 4096
+
+! ============================================================
+end

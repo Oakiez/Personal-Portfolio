@@ -1,0 +1,81 @@
+! ============================================================
+! LAB 6 — R1 Configuration (NAT Edge Router)
+! Enterprise Branch Architecture v1
+! ============================================================
+
+hostname R1
+
+! --- Interface: WAN (Internet-facing) ---
+interface GigabitEthernet0/0
+ description WAN-Internet-Edge
+ ip address dhcp
+ ip nat outside
+ ip access-group WAN-IN in
+ no shutdown
+
+! --- Interface: LAN A ---
+interface GigabitEthernet0/1
+ description LAN-A-Internal
+ ip address 192.168.10.1 255.255.255.0
+ ip nat inside
+ no shutdown
+
+! --- Interface: WAN Serial to R2 ---
+interface Serial0/0/0
+ description WAN-Link-to-R2
+ ip address 100.10.10.1 255.255.255.252
+ no shutdown
+
+! ============================================================
+! PHASE 1 — OSPF Dynamic Routing
+! ============================================================
+router ospf 1
+ router-id 1.1.1.1
+ network 100.10.10.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ passive-interface GigabitEthernet0/1
+ default-information originate
+
+! ============================================================
+! PHASE 2 — IP SLA: WAN Failure Detection
+! ============================================================
+ip sla 1
+ icmp-echo 8.8.8.8 source-interface GigabitEthernet0/0
+ frequency 5
+ip sla schedule 1 life forever start-time now
+
+track 1 ip sla 1 reachability
+
+ip route 0.0.0.0 0.0.0.0 GigabitEthernet0/0 track 1
+
+! ============================================================
+! PHASE 3 — WAN Security: ACL Firewall
+! ============================================================
+ip access-list extended WAN-IN
+ permit tcp 192.168.20.0 0.0.0.255 192.168.10.0 0.0.0.255
+ deny ip any any log
+
+! ============================================================
+! PHASE 4 — Microservice Exposure (NAT Port Forwarding)
+! ============================================================
+! Expose ONLY API Gateway on port 8000
+ip nat inside source static tcp 192.168.10.10 8000 interface GigabitEthernet0/0 8000
+
+! General NAT for outbound traffic
+ip nat inside source list NAT-ACL interface GigabitEthernet0/0 overload
+
+ip access-list standard NAT-ACL
+ permit 192.168.10.0 0.0.0.255
+ permit 192.168.20.0 0.0.0.255
+
+! ============================================================
+! PHASE 5 — Observability Foundation
+! ============================================================
+service timestamps log datetime msec
+logging buffered 4096
+
+! Optional: NetFlow
+ip flow-export version 9
+
+! ============================================================
+end

@@ -1,0 +1,87 @@
+version: "3.9"
+
+# ============================================================
+# LAB 6 — Microservice Stack
+# Enterprise Branch Architecture v1
+# ============================================================
+# Architecture:
+#   Internet → R1:8000 (NAT) → API Gateway (192.168.10.10:8000)
+#   Backend services are PRIVATE — not NAT-forwarded
+# ============================================================
+
+services:
+
+  # ── API Gateway (EXPOSED via NAT port 8000) ─────────────
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "8000:80"          # Only this port is NAT-forwarded from R1
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      lan_a:
+        ipv4_address: 192.168.10.10
+    depends_on:
+      - service-a
+      - service-b
+    restart: unless-stopped
+    labels:
+      - "lab6.role=gateway"
+      - "lab6.exposed=true"
+
+  # ── Backend Service A (PRIVATE — port 9000, NOT exposed) ─
+  service-a:
+    build: ./service-a
+    container_name: service-a
+    expose:
+      - "9000"             # Internal only — NOT forwarded by NAT
+    environment:
+      - SERVICE_NAME=service-a
+      - PORT=9000
+    networks:
+      lan_a:
+        ipv4_address: 192.168.10.11
+    restart: unless-stopped
+    labels:
+      - "lab6.role=backend"
+      - "lab6.exposed=false"
+
+  # ── Backend Service B (PRIVATE — port 9001, NOT exposed) ─
+  service-b:
+    build: ./service-b
+    container_name: service-b
+    expose:
+      - "9001"             # Internal only — NOT forwarded by NAT
+    environment:
+      - SERVICE_NAME=service-b
+      - PORT=9001
+    networks:
+      lan_a:
+        ipv4_address: 192.168.10.12
+    restart: unless-stopped
+    labels:
+      - "lab6.role=backend"
+      - "lab6.exposed=false"
+
+  # ── Observability: Log Aggregator ────────────────────────
+  log-collector:
+    image: fluent/fluent-bit:latest
+    container_name: log-collector
+    volumes:
+      - ./observability/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - /var/log:/var/log:ro
+    networks:
+      lan_a:
+        ipv4_address: 192.168.10.20
+    restart: unless-stopped
+    labels:
+      - "lab6.role=observability"
+
+networks:
+  lan_a:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+          gateway: 192.168.10.1   # R1 LAN A interface

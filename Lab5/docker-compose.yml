@@ -1,0 +1,92 @@
+version: "3.8"
+
+# LAB 5 — Internet Edge + ISP Serial WAN + Week03 Microservices
+# ServerA (LAN A: 192.168.10.10) — runs Upload + Processing + AI + Gateway
+# ServerB (LAN B: 192.168.20.10) — runs same stack (mirror deployment)
+
+services:
+  # ──────────────────────────────────────────────
+  # ServerA Stack (LAN A — 192.168.10.0/24)
+  # ──────────────────────────────────────────────
+  upload_service:
+    build:
+      context: ./automation
+      dockerfile: Dockerfile
+    command: uvicorn upload_service:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - PROCESSING_SERVICE_URL=http://processing_service:8001
+    networks:
+      - lan_a
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  processing_service:
+    build:
+      context: ./automation
+      dockerfile: Dockerfile
+    command: uvicorn processing_service:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      - AI_SERVICE_URL=http://ai_service:8002
+    networks:
+      - lan_a
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ai_service:
+    build:
+      context: ./automation
+      dockerfile: Dockerfile
+    command: uvicorn ai_service:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    networks:
+      - lan_a
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  gateway_service:
+    build:
+      context: ./automation
+      dockerfile: Dockerfile
+    command: uvicorn gateway_service:app --host 0.0.0.0 --port 9000
+    ports:
+      - "9000:9000"
+    environment:
+      - UPLOAD_SERVICE_URL=http://upload_service:8000
+      - PROCESSING_SERVICE_URL=http://processing_service:8001
+      - AI_SERVICE_URL=http://ai_service:8002
+    networks:
+      - lan_a
+    depends_on:
+      - upload_service
+      - processing_service
+      - ai_service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  lan_a:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.10.0/24
