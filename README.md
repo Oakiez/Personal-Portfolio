@@ -6,8 +6,8 @@
 
 ## About
 
-**Wongsathon Thanayod**
-Computer science student at Khon Kaen University, College of Computing.
+**Wongsathon Thanayod** - A
+computer science student at Khon Kaen University, College of Computing.
 This repository contains all coursework, labs, and projects completed throughout the course.
 
 - 📧 duckyduckzy@gmail.com
